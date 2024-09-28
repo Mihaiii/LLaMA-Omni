@@ -46,17 +46,17 @@ def load_pretrained_model(model_path, model_base, is_lora=False, s2s=False, load
     if is_lora:
         assert model_base is not None, "model_base is required for LoRA models."
         from omni_speech.model.language_model.omni_speech_llama import OmniSpeechConfig
-        lora_cfg_pretrained = OmniSpeechConfig.from_pretrained(model_path)
+        lora_cfg_pretrained = OmniSpeechConfig.from_pretrained(model_base)
         tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
         print('Loading OmniSpeech from base model...')
         model = model_cls.from_pretrained(model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained, **kwargs)
         print('Loading additional OmniSpeech weights...')
         if os.path.exists(os.path.join(model_path, 'non_lora_trainables.bin')):
             non_lora_trainables = torch.load(os.path.join(model_path, 'non_lora_trainables.bin'), map_location='cpu')
-        non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
-        if any(k.startswith('model.model.') for k in non_lora_trainables):
-            non_lora_trainables = {(k[6:] if k.startswith('model.') else k): v for k, v in non_lora_trainables.items()}
-        model.load_state_dict(non_lora_trainables, strict=False)
+            non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
+            if any(k.startswith('model.model.') for k in non_lora_trainables):
+                non_lora_trainables = {(k[6:] if k.startswith('model.') else k): v for k, v in non_lora_trainables.items()}
+            model.load_state_dict(non_lora_trainables, strict=False)
 
         from peft import PeftModel
         print('Loading LoRA weights...')
@@ -64,6 +64,7 @@ def load_pretrained_model(model_path, model_base, is_lora=False, s2s=False, load
         print('Merging LoRA weights...')
         model = model.merge_and_unload()
         print('Model is loaded...')
+        model = model.to(device=device)
     elif model_base is not None:
         print('Loading OmniSpeech from base model...')
         tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
